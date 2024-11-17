@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pembanding Dokumen | PDF & Excel Merger",
+  title: "Smart Document Merger | PDF & Excel",
   description:
-    "Aplikasi untuk membandingkan dan menggabungkan dokumen PDF dan Excel",
+    "Aplikasi pintar untuk menggabungkan dan menyinkronkan data dari dokumen PDF dan Excel berdasarkan kesamaan kolom",
 };
 
 export default function RootLayout({

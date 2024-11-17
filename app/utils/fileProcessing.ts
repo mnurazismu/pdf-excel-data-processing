@@ -119,24 +119,40 @@ export async function generateResultPDF(mergedData: TableRow[]) {
 }
 
 export function mergeTables(table1: TableRow[], table2: TableRow[]): TableRow[] {
-    const normalizeKeys = (row: TableRow): NormalizedRow => {
-        const nomorPesertaKey = Object.keys(row).find(key =>
-            key.toLowerCase().includes('nomor') && key.toLowerCase().includes('peserta')
-        ) || 'nomorpeserta';
+    if (!table1.length || !table2.length) return [];
 
-        const namaKey = Object.keys(row).find(key =>
-            key.toLowerCase() === 'nama'
-        ) || 'nama';
+    // Temukan header yang sama antara kedua tabel
+    const headers1 = Object.keys(table1[0]);
+    const headers2 = Object.keys(table2[0]);
+    const commonHeaders = headers1.filter(header => 
+        headers2.some(h2 => h2.toLowerCase() === header.toLowerCase())
+    );
 
-        return {
-            nomorPeserta: String(row[nomorPesertaKey] || '').toLowerCase().trim(),
-            nama: String(row[namaKey] || '').toLowerCase().trim(),
-            originalRow: row
-        };
+    if (commonHeaders.length === 0) {
+        console.error('Tidak ada header yang sama antara kedua tabel');
+        return [];
+    }
+
+    const normalizeRow = (row: TableRow): string => {
+        return commonHeaders
+            .map(header => {
+                const value = Object.entries(row)
+                    .find(([key]) => key.toLowerCase() === header.toLowerCase())?.[1];
+                return String(value || '').toLowerCase().trim();
+            })
+            .join('|');
     };
 
-    const normalizedTable1 = table1.map(normalizeKeys);
-    const normalizedTable2 = table2.map(normalizeKeys);
+    const normalizedTable1 = table1.map(row => ({
+        normalizedKey: normalizeRow(row),
+        originalRow: row
+    }));
+    
+    const normalizedTable2 = table2.map(row => ({
+        normalizedKey: normalizeRow(row),
+        originalRow: row
+    }));
+
     const usedIndicesTable2 = new Set<number>();
     const mergedData: TableRow[] = [];
 
@@ -145,8 +161,7 @@ export function mergeTables(table1: TableRow[], table2: TableRow[]): TableRow[] 
             if (usedIndicesTable2.has(i)) continue;
 
             const row2 = normalizedTable2[i];
-            if (row1.nomorPeserta === row2.nomorPeserta &&
-                row1.nama === row2.nama) {
+            if (row1.normalizedKey === row2.normalizedKey) {
                 mergedData.push({
                     ...row1.originalRow,
                     ...row2.originalRow
@@ -159,3 +174,45 @@ export function mergeTables(table1: TableRow[], table2: TableRow[]): TableRow[] 
 
     return mergedData;
 }
+
+// export function mergeTables(table1: TableRow[], table2: TableRow[]): TableRow[] {
+//     const normalizeKeys = (row: TableRow): NormalizedRow => {
+//         const nomorPesertaKey = Object.keys(row).find(key =>
+//             key.toLowerCase().includes('nomor') && key.toLowerCase().includes('peserta')
+//         ) || 'nomorpeserta';
+
+//         const namaKey = Object.keys(row).find(key =>
+//             key.toLowerCase() === 'nama'
+//         ) || 'nama';
+
+//         return {
+//             nomorPeserta: String(row[nomorPesertaKey] || '').toLowerCase().trim(),
+//             nama: String(row[namaKey] || '').toLowerCase().trim(),
+//             originalRow: row
+//         };
+//     };
+
+//     const normalizedTable1 = table1.map(normalizeKeys);
+//     const normalizedTable2 = table2.map(normalizeKeys);
+//     const usedIndicesTable2 = new Set<number>();
+//     const mergedData: TableRow[] = [];
+
+//     normalizedTable1.forEach((row1) => {
+//         for (let i = 0; i < normalizedTable2.length; i++) {
+//             if (usedIndicesTable2.has(i)) continue;
+
+//             const row2 = normalizedTable2[i];
+//             if (row1.nomorPeserta === row2.nomorPeserta &&
+//                 row1.nama === row2.nama) {
+//                 mergedData.push({
+//                     ...row1.originalRow,
+//                     ...row2.originalRow
+//                 });
+//                 usedIndicesTable2.add(i);
+//                 break;
+//             }
+//         }
+//     });
+
+//     return mergedData;
+// }

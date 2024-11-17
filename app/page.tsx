@@ -84,7 +84,7 @@ export default function Home() {
         Array.isArray(table1Data) &&
         Array.isArray(table2Data)
       ) {
-        const mergedData = mergeTables(table1Data, table2Data);
+        const mergedData = mergeTables(table1Data, table2Data) as TableData[];
         setResult(mergedData);
 
         // Generate PDF

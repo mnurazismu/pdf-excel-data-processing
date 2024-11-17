@@ -2,10 +2,28 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 
+interface TableRow {
+    [key: string]: string;
+}
+
+interface NormalizedRow {
+    nomorPeserta: string;
+    nama: string;
+    originalRow: TableRow;
+}
+
+interface TextItem {
+    str: string;
+}
+
+interface TextContent {
+    items: TextItem[];
+}
+
 // Inisialisasi PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-export async function extractTableFromExcel(file: File): Promise<any[]> {
+export async function extractTableFromExcel(file: File): Promise<TableRow[]> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
@@ -14,13 +32,8 @@ export async function extractTableFromExcel(file: File): Promise<any[]> {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false });
-                // Memastikan bahwa jsonData adalah array
-                if (Array.isArray(jsonData)) {
-                    resolve(jsonData);
-                } else {
-                    resolve([]);
-                }
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false }) as TableRow[];
+                resolve(Array.isArray(jsonData) ? jsonData : []);
             } catch (error) {
                 reject(error);
             }
@@ -31,16 +44,16 @@ export async function extractTableFromExcel(file: File): Promise<any[]> {
     });
 }
 
-export async function extractTableFromPDF(file: File): Promise<any[]> {
+export async function extractTableFromPDF(file: File): Promise<TableRow[]> {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let result: any[] = [];
+    const result: TableRow[] = [];
 
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
+        const textContent = await page.getTextContent() as TextContent;
         const text = textContent.items
-            .map((item: any) => item.str)
+            .map(item => item.str)
             .join(' ');
 
         const rows = text.split('\n').filter(row => row.trim());
@@ -49,7 +62,7 @@ export async function extractTableFromPDF(file: File): Promise<any[]> {
         for (let j = 1; j < rows.length; j++) {
             const values = rows[j].split(/\s+/).filter(v => v.trim());
             if (values.length === headers.length) {
-                const row: { [key: string]: string } = {}; // Menambahkan index signature
+                const row: TableRow = {};
                 headers.forEach((header, index) => {
                     row[header.toLowerCase()] = values[index];
                 });
@@ -61,9 +74,9 @@ export async function extractTableFromPDF(file: File): Promise<any[]> {
     return result;
 }
 
-export async function generateResultPDF(mergedData: any[]) {
+export async function generateResultPDF(mergedData: TableRow[]) {
     const pdfDoc = await PDFDocument.create();
-    let currentPage = pdfDoc.addPage([842, 595]); // Menggunakan let untuk currentPage
+    let currentPage = pdfDoc.addPage([842, 595]);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     const headers = Object.keys(mergedData[0] || {});
@@ -72,7 +85,6 @@ export async function generateResultPDF(mergedData: any[]) {
     const startX = 20;
     let startY = 550;
 
-    // Draw headers
     headers.forEach((header, index) => {
         currentPage.drawText(header, {
             x: startX + (index * cellWidth),
@@ -85,7 +97,6 @@ export async function generateResultPDF(mergedData: any[]) {
 
     startY -= cellHeight;
 
-    // Draw data rows
     mergedData.forEach((row) => {
         headers.forEach((header, index) => {
             currentPage.drawText(String(row[header] || ''), {
@@ -98,7 +109,6 @@ export async function generateResultPDF(mergedData: any[]) {
         });
         startY -= cellHeight;
 
-        // Add new page if needed
         if (startY < 50) {
             currentPage = pdfDoc.addPage([842, 595]);
             startY = 550;
@@ -108,9 +118,8 @@ export async function generateResultPDF(mergedData: any[]) {
     return await pdfDoc.save();
 }
 
-export function mergeTables(table1: any[], table2: any[]) {
-    // Normalisasi key untuk nomor peserta dan nama
-    const normalizeKeys = (row: any) => {
+export function mergeTables(table1: TableRow[], table2: TableRow[]): TableRow[] {
+    const normalizeKeys = (row: TableRow): NormalizedRow => {
         const nomorPesertaKey = Object.keys(row).find(key =>
             key.toLowerCase().includes('nomor') && key.toLowerCase().includes('peserta')
         ) || 'nomorpeserta';
@@ -126,26 +135,18 @@ export function mergeTables(table1: any[], table2: any[]) {
         };
     };
 
-    // Normalisasi kedua tabel
     const normalizedTable1 = table1.map(normalizeKeys);
     const normalizedTable2 = table2.map(normalizeKeys);
-
-    // Set untuk melacak data yang sudah digunakan dari table2
     const usedIndicesTable2 = new Set<number>();
+    const mergedData: TableRow[] = [];
 
-    // Array untuk menyimpan hasil penggabungan
-    const mergedData: any[] = [];
-
-    // Iterasi setiap baris di table1
     normalizedTable1.forEach((row1) => {
-        // Cari kecocokan di table2 yang belum digunakan
         for (let i = 0; i < normalizedTable2.length; i++) {
             if (usedIndicesTable2.has(i)) continue;
 
             const row2 = normalizedTable2[i];
             if (row1.nomorPeserta === row2.nomorPeserta &&
                 row1.nama === row2.nama) {
-                // Jika cocok, gabungkan data dan tandai sebagai terpakai
                 mergedData.push({
                     ...row1.originalRow,
                     ...row2.originalRow

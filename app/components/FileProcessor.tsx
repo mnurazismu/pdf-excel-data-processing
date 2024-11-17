@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { FiCheck, FiDownload, FiFile, FiRefreshCw, FiUploadCloud } from "react-icons/fi";
+import {
+  FiCheck,
+  FiDownload,
+  FiFile,
+  FiRefreshCw,
+  FiUploadCloud,
+} from "react-icons/fi";
 import {
   extractTableFromExcel,
   extractTableFromPDF,
@@ -23,6 +29,7 @@ export default function FileProcessor() {
   const [result, setResult] = useState<TableData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
+  const [commonHeaders, setCommonHeaders] = useState<string[]>([]);
 
   const onDrop1 = (acceptedFiles: File[]) => {
     setFile1(acceptedFiles[0]);
@@ -86,6 +93,7 @@ export default function FileProcessor() {
       ) {
         const mergedData = mergeTables(table1Data, table2Data) as TableData[];
         setResult(mergedData);
+        setCommonHeaders(Object.keys(mergedData[0] || {}));
 
         // Generate PDF
         const generatedPdfBytes = await generateResultPDF(mergedData);
@@ -142,11 +150,12 @@ export default function FileProcessor() {
         {/* Header */}
         <div className="bg-white rounded-xl shadow p-8 mb-8">
           <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">
-            Pembanding Dokumen
+            Smart Document Merger
           </h1>
           <p className="text-center text-gray-600 max-w-2xl mx-auto">
-            Upload dua dokumen (PDF atau Excel) untuk membandingkan dan
-            menggabungkan data berdasarkan kolom tabel nomor peserta dan nama
+            Unggah dua dokumen (PDF atau Excel) untuk menggabungkan data secara
+            otomatis. Sistem akan mendeteksi kolom-kolom yang sama dan
+            menggabungkan data yang sesuai tanpa duplikasi.
           </p>
         </div>
 
@@ -242,14 +251,14 @@ export default function FileProcessor() {
             </button>
 
             {result.length > 0 && (
-            <button
-              onClick={handleReset}
-              className="px-8 py-3 bg-gray-600 text-white rounded-lg font-medium shadow-sm hover:bg-gray-700 transition-colors flex items-center space-x-2"
-            >
-              <FiRefreshCw className="w-5 h-5" />
-              <span>Reset</span>
-            </button>
-          )}
+              <button
+                onClick={handleReset}
+                className="px-8 py-3 bg-gray-600 text-white rounded-lg font-medium shadow-sm hover:bg-gray-700 transition-colors flex items-center space-x-2"
+              >
+                <FiRefreshCw className="w-5 h-5" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -282,7 +291,8 @@ export default function FileProcessor() {
                   Hasil Penggabungan
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  {result.length} data berhasil digabungkan
+                  {result.length} data berhasil digabungkan berdasarkan{" "}
+                  {commonHeaders?.length || 0} kolom yang sama
                 </p>
               </div>
               <div className="overflow-x-auto">
